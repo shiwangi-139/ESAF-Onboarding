@@ -152,6 +152,14 @@ echo "30 2 * * * root /usr/local/bin/csp-backup" | sudo tee /etc/cron.d/csp-back
 
 ## 4. Updating to a new version
 
+After pushing changes to GitHub from the laptop, run this on the server:
+
+```bash
+sudo /srv/csp-onboarding/app/deploy/update.sh
+```
+
+It pulls `main`, installs packages, migrates the database, restarts the app and checks it came back up. The manual equivalent:
+
 ```bash
 cd /srv/csp-onboarding/app && sudo git pull
 sudo /srv/csp-onboarding/venv/bin/pip install -r requirements.txt
