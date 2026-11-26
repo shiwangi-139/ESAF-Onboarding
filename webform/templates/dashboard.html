@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block body_attrs %} data-autorefresh="1"{% endblock %}
+{% block content %}
+
+{% if new_lead %}
+<div class="banner">
+  <strong>{{ new_lead.name or new_lead.mobile }} is on your list.</strong>
+  Send them the form from here and you'll see the moment they open it and everything they fill.
+  <div class="linkbox">
+    <a class="btn btn-wa" href="{{ new_lead.wa }}" target="_blank" rel="noopener">Send form on WhatsApp</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Your form link</h2>
+  <div class="muted">One link for everyone. It never expires. Whoever fills it appears below, matched by mobile number.</div>
+  <div class="linkbox">
+    <input type="text" id="applylink" value="{{ link }}" readonly>
+    <button class="btn btn-light" type="button" data-copy="#applylink">Copy</button>
+    <a class="btn btn-wa" href="{{ share_wa }}" target="_blank" rel="noopener">Share on WhatsApp</a>
+  </div>
+</div>
+
+{% if can_add %}
+<div class="card">
+  <h2>Add a lead to track</h2>
+  <div class="muted" style="margin-bottom:10px;">Leads you add are assigned to you. Sending the form from a lead's row lets you see when they open it.</div>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('dashboard.create') }}" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="text" name="name" placeholder="Lead name" maxlength="200">
+    <input type="tel" name="mobile" placeholder="Mobile (10 digits)" required pattern="[6-9][0-9]{9}" maxlength="10">
+    <input type="email" name="email" placeholder="Email (optional)" maxlength="200">
+    <button class="btn btn-red" type="submit">Add lead</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="stats">
+  {% for s in stats %}
+  <div class="stat"><div class="n">{{ s.n }}</div><div class="l">{{ s.label }}</div></div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>Leads</h2>
+  <div class="tabs">
+    <a href="{{ url_for('dashboard.index') }}" class="{{ 'on' if view == 'all' }}">All I can see</a>
+    <a href="{{ url_for('dashboard.index', view='mine') }}" class="{{ 'on' if view == 'mine' }}">Assigned to me</a>
+    {% if is_manager %}<a href="{{ url_for('dashboard.index', view='unassigned') }}" class="{{ 'on' if view == 'unassigned' }}">Unassigned</a>{% endif %}
+  </div>
+  <input type="text" class="search" id="search" placeholder="Search by name, mobile or RM">
+  <div class="table-wrap">
+    <table id="leads">
+      <thead>
+        <tr><th>Lead</th><th>Mobile</th><th>Status</th><th>Filled</th><th>RM</th><th>Declaration</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for r in leads %}
+        {% set p = r.progress %}
+        <tr>
+          <td>
+            <a href="{{ url_for('dashboard.lead', lead_id=r.id) }}">{{ r.name or '(no name yet)' }}</a>
+            {% if r.source == 'form_link' %}<div class="muted">Came in via the form link</div>{% endif %}
+          </td>
+          <td>{{ r.mobile or '' }}</td>
+          <td>
+            <span class="badge {{ p.color }}">{{ p.label }}</span>
+            {% if p.note %}<div class="muted">{{ p.note }}</div>{% endif %}
+          </td>
+          <td>
+            {% if p.label != 'Not opened yet' %}
+            {{ p.filled }}/{{ p.total_fields }} answers<div class="muted">{{ r.docs }}/{{ p.total_docs }} photos</div>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td>{% if r.rm_name %}{{ r.rm_name }}{% else %}<span class="badge grey">Unassigned</span>{% endif %}</td>
+          <td>{% if r.mismatches %}<span class="badge red">Needed</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>
+            <div class="actions">
+              {% if p.label != 'Submitted' and can_add %}
+              <a class="btn btn-wa" href="{{ r.wa }}" target="_blank" rel="noopener">Send form</a>
+              {% endif %}
+              <a class="btn btn-light" href="{{ url_for('dashboard.lead', lead_id=r.id) }}">View</a>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="muted">No leads here yet. Share the form link above, or add a lead to track.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

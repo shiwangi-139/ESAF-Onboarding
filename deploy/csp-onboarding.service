@@ -1,0 +1,30 @@
+[Unit]
+Description=CSP onboarding platform (gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=csp
+Group=csp
+WorkingDirectory=/srv/csp-onboarding/app
+ExecStart=/srv/csp-onboarding/venv/bin/gunicorn -c /srv/csp-onboarding/app/deploy/gunicorn.conf.py
+Restart=always
+RestartSec=3
+UMask=0077
+Environment=HOME=/srv/csp-onboarding
+
+# Sandboxing: the app can only write to its data folder and /tmp
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/csp-onboarding/data /srv/csp-onboarding/.config /srv/csp-onboarding/.cache
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

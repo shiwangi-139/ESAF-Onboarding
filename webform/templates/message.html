@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='apply.css') }}">
+</head>
+<body>
+<div class="header"><div class="brand">ESAF Small Finance Bank</div><div class="sub">CSP एजेंट ऑनबोर्डिंग / CSP Agent Onboarding</div></div>
+<div class="container">
+  <div class="card">
+    <h3>{{ title }}</h3>
+    {% if back %}
+    <ul>{% for line in body %}<li>{{ line }}</li>{% endfor %}</ul>
+    <p><a href="{{ url_for('apply') }}">वापस जाकर पूरा करें / Go back and complete</a></p>
+    {% else %}
+    {% for line in body %}<p>{{ line }}</p>{% endfor %}
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

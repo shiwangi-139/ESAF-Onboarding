@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ESAF CSP Dashboard{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body{% block body_attrs %}{% endblock %}>
+<header class="topbar">
+  <div class="wrap">
+    <div>
+      <div class="brand">ESAF Small Finance Bank</div>
+      <div class="sub">CSP Onboarding · RM Dashboard</div>
+    </div>
+    {% if g.user %}
+    <nav>
+      <a href="{{ url_for('dashboard.index') }}" class="{{ 'on' if request.endpoint in ('dashboard.index', 'dashboard.lead') }}">Leads</a>
+      {% if g.user.role == 'org_admin' %}
+      <a href="{{ url_for('dashboard.users') }}" class="{{ 'on' if request.endpoint == 'dashboard.users' }}">Team</a>
+      {% endif %}
+      <span class="who">{{ g.user.name }} · {{ role_label(g.user.role) }}</span>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Sign out</button>
+      </form>
+    </nav>
+    {% endif %}
+  </div>
+</header>
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

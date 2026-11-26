@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name or 'Lead' }} · ESAF CSP{% endblock %}
+{% block content %}
+
+<p><a href="{{ url_for('dashboard.index') }}">← All leads</a></p>
+{% if msg %}<div class="banner">{{ msg }}</div>{% endif %}
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+    <div>
+      <h2 style="font-size:18px; margin:0 0 4px;">{{ lead.name or '(no name yet)' }}</h2>
+      <div class="muted">{{ lead.mobile or '' }}{% if lead.email %} · {{ lead.email }}{% endif %}</div>
+    </div>
+    <div><span class="badge {{ info.color }}">{{ info.label }}</span></div>
+  </div>
+
+  <div class="kv" style="margin-top:14px;">
+    <div class="k">Added</div><div>{{ lead.created_at | fmt }}{% if lead.source == 'form_link' %} (came in via the form link){% endif %}</div>
+    <div class="k">Assigned RM</div>
+    <div>
+      {% if is_manager %}
+      <form method="post" action="{{ url_for('dashboard.assign', lead_id=lead.id) }}" class="row" style="gap:6px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="user_id">
+          <option value="">— Unassigned —</option>
+          {% for u in rms %}<option value="{{ u.id }}"{% if u.id == lead.assigned_rm_id %} selected{% endif %}>{{ u.name }} ({{ role_label(u.role) }})</option>{% endfor %}
+        </select>
+        <button class="btn btn-light" type="submit">Save</button>
+      </form>
+      {% else %}{{ rm_name or 'Unassigned' }}{% endif %}
+    </div>
+    <div class="k">Opened the form</div><div>{{ (form.opened_at | fmt) if form else 'Not yet' }}</div>
+    <div class="k">Reached</div><div>{{ ('Step ' ~ form.current_step ~ ' of ' ~ total_steps) if form else '—' }}</div>
+    <div class="k">Last active</div><div>{{ (form.last_activity_at | fmt) if form else '—' }}</div>
+    <div class="k">Answers / photos</div><div>{% if form %}{{ info.filled }}/{{ info.total_fields }} answers · {{ doc_tiles | selectattr(1) | list | length }}/{{ info.total_docs }} photos{% else %}—{% endif %}</div>
+    <div class="k">Submitted</div><div>{{ (form.submitted_at | fmt) if form and form.submitted_at else 'Not yet' }}</div>
+  </div>
+
+  {% if info.label != 'Submitted' and can_edit %}
+  <div class="linkbox">
+    <a class="btn btn-wa" href="{{ wa }}" target="_blank" rel="noopener">{{ 'Remind on WhatsApp' if form else 'Send form on WhatsApp' }}</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if missing %}
+<div class="card">
+  <h2>Still missing ({{ missing | length }})</h2>
+  <div class="muted">{{ missing | join(' · ') }}</div>
+</div>
+{% endif %}
+
+{% if not form %}
+<div class="card muted">This lead hasn't opened the form yet. Their answers and photos will appear here as they fill it in.</div>
+{% endif %}
+
+{% for grp in groups %}
+<div class="card">
+  <h2>{{ grp.title }}</h2>
+  <div class="kv">
+    {% for label, value in grp["items"] %}
+    <div class="k">{{ label }}</div><div>{{ value or '—' }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+{% if form %}
+<div class="card">
+  <h2>Photos</h2>
+  {% if compliance %}
+  <div class="muted">Document images are hidden for the compliance role.</div>
+  {% else %}
+  <div class="docs">
+    {% for label, doc in doc_tiles %}
+      {% if doc %}
+      <a class="doc" href="{{ url_for('dashboard.file', doc_id=doc.id) }}" target="_blank" rel="noopener">
+        <img src="{{ url_for('dashboard.file', doc_id=doc.id) }}" alt="{{ label }}" loading="lazy">
+        <div class="cap">{{ label }}</div>
+      </a>
+      {% else %}
+      <div class="doc missing">{{ label }}<br>not uploaded</div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="muted" style="margin-top:8px;">Every time a photo is opened, it's recorded in the audit log.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Shop location</h2>
+  {% if location %}
+  <a href="https://www.google.com/maps?q={{ location[0] }},{{ location[1] }}" target="_blank" rel="noopener">
+    Open in Google Maps ({{ location[0] }}, {{ location[1] }})</a> <span class="muted">· from {{ location[2] }}</span>
+  {% else %}
+  <span class="muted">No location recorded. The photo had no GPS and the phone didn't share its location, so note it during your field visit.</span>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div class="card" id="fvr">
+  <h2>Field visit (FVR) <span class="muted" style="font-weight:normal;">— you fill this at the shop{% if visit_saved_at %} · saved {{ visit_saved_at | fmt }}{% endif %}</span></h2>
+  <form method="post" action="{{ url_for('dashboard.save_visit', lead_id=lead.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="fvr-grid">
+      {% for f in fvr_fields %}
+      {% set v = visit.get(f.key, '') %}
+      <label class="fvr-field{% if f.kind == 'textarea' %} wide{% endif %}">
+        <span>{{ f.en }}{% if not f.required %} <em class="muted">(optional)</em>{% endif %}</span>
+        {% if f.kind == 'select' %}
+        <select name="{{ f.key }}">
+          <option value="">—</option>
+          {% for val, lab in f.options %}<option value="{{ val }}"{% if v == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
+        </select>
+        {% elif f.kind == 'textarea' %}
+        <textarea name="{{ f.key }}" rows="2" maxlength="1000">{{ v }}</textarea>
+        {% else %}
+        <input type="{{ f.kind }}" name="{{ f.key }}" value="{{ v }}" maxlength="1000"{% if f.kind == 'number' %} min="0"{% endif %}>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <button class="btn btn-red" type="submit" style="margin-top:12px;">Save field visit</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card" id="declaration">
+  <h2>Declaration form</h2>
+  <div class="muted" style="margin-bottom:10px;">
+    A Customer Declaration Form is generated only when something is listed here. "No shop address proof" and
+    "lives away from Aadhaar address" come from the lead's answers automatically. Add name/DOB/father's name/signature
+    mismatches yourself after comparing their documents.
+  </div>
+  {% if mismatches %}
+  <table>
+    <thead><tr><th>Type</th><th>Correct as per</th><th>Correct value</th><th>Different in</th><th>Value there</th><th></th></tr></thead>
+    <tbody>
+    {% for m in mismatches %}
+      <tr>
+        <td>{{ m.label }}</td><td>{{ m.source_a or '' }}</td><td>{{ m.value_a or '' }}</td>
+        <td>{{ m.source_b or '' }}</td><td>{{ m.value_b or '' }}</td>
+        <td>
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('dashboard.delete_mismatch', lead_id=lead.id, mismatch_id=m.id) }}" data-confirm="Remove this declaration item?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-light" type="submit" style="padding:4px 8px;">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="muted">Nothing listed, so no declaration is needed.</div>
+  {% endif %}
+  {% if can_edit %}
+  <form method="post" action="{{ url_for('dashboard.add_mismatch', lead_id=lead.id) }}" class="row" style="margin-top:12px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="field_name" required>
+      {% for key, label in declaration_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="source_a" placeholder="Correct as per (e.g. Aadhaar)" required maxlength="300">
+    <input type="text" name="value_a" placeholder="Correct value" maxlength="300">
+    <input type="text" name="source_b" placeholder="Different in (e.g. PAN)" maxlength="300">
+    <input type="text" name="value_b" placeholder="Value there" maxlength="300">
+    <button class="btn btn-light" type="submit">Add</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card" id="documents">
+  <h2>Official documents</h2>
+  {% if not submitted %}
+  <div class="muted">Available once the lead submits the form.</div>
+  {% elif compliance %}
+  <div class="muted">{{ 'Version ' ~ generated[0].version ~ ' generated.' if generated else 'Not generated yet.' }} Downloads are limited to RMs and admins.</div>
+  {% else %}
+  <div class="muted" style="margin-bottom:10px;">
+    Fills the Aggregator Application Form, the FVR (with your field visit), the Declaration (only if needed) and the
+    Agent Banking Agreement. Each run creates a new version; older versions are kept. Files are stored encrypted.
+  </div>
+  <form method="post" action="{{ url_for('dashboard.generate', lead_id=lead.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-red" type="submit">{{ 'Generate again' if generated else 'Generate documents' }}</button>
+  </form>
+  {% if generated %}
+  <table style="margin-top:12px;">
+    <thead><tr><th>Document (version {{ generated[0].version }})</th><th>Generated</th><th></th></tr></thead>
+    <tbody>
+    {% for d in generated %}
+      <tr>
+        <td>{{ doc_kind_labels.get(d.doc_type, d.doc_type) }} <span class="muted">· {{ d.filename.rsplit('.', 1)[-1] | upper }}</span></td>
+        <td class="muted">{{ d.created_at | fmt }}</td>
+        <td><a class="btn btn-light" href="{{ url_for('dashboard.generated_file', doc_id=d.id) }}">Download</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="linkbox">
+    <a class="btn btn-red" href="{{ url_for('dashboard.packet', lead_id=lead.id) }}">Download full packet (.zip)</a>
+    <span class="muted" style="align-self:center;">Forms + all uploaded documents, ready to check and send to Aceware.</span>
+  </div>
+  <div class="muted" style="margin-top:10px;">
+    Before sending: print, have the agent sign in <strong>black ink</strong> (application form, declaration),
+    print the agreement on <strong>₹100 stamp paper</strong>, and sign the FVR yourself.
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Timeline</h2>
+  <ul class="timeline">
+    {% for h in history %}
+    <li><strong>{{ h.type }}</strong>{% if h.payload %} <span class="muted">{{ h.payload | tojson }}</span>{% endif %}
+      <span class="muted">· {{ h.created_at | fmt }}</span></li>
+    {% else %}
+    <li class="muted">No activity yet.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

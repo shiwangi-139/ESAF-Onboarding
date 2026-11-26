@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ESAF CSP Onboarding</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='apply.css') }}">
+</head>
+<body>
+<div class="header">
+  <div class="brand">ESAF Small Finance Bank</div>
+  <div class="sub">CSP एजेंट ऑनबोर्डिंग / CSP Agent Onboarding</div>
+</div>
+<div class="secure-note">🔒 आपकी जानकारी सुरक्षित और गोपनीय है / Your information is secure &amp; confidential</div>
+
+{% macro render_field(f) %}
+{% set v = saved.get(f.key, '') %}
+<div class="field{% if f.key == 'local_address' and saved.get('lives_at_aadhaar_address') != 'no' %} hidden{% endif %}"{% if f.key == 'local_address' %} id="addr-box"{% endif %}>
+  <label for="f-{{ f.key }}">{{ f.hi }} / {{ f.en }}</label>
+  {% if f.kind == 'select' %}
+  <select id="f-{{ f.key }}" name="{{ f.key }}"{% if f.required %} required{% endif %}>
+    <option value="" disabled{% if not v %} selected{% endif %}>चुनें / Select</option>
+    {% for val, lab in f.options %}<option value="{{ val }}"{% if v == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
+  </select>
+  {% else %}
+  <input id="f-{{ f.key }}" type="{{ f.kind }}" name="{{ f.key }}" value="{{ v }}" maxlength="500"{% if f.required %} required{% endif %} {{ f.attrs | safe }}>
+  {% endif %}
+  {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+<div class="container">
+  <div class="progress">
+    {% for s in steps %}
+    <div class="step-wrap"><div class="circle" data-step="{{ s.n }}">{{ s.n }}</div>{{ s.hi }}<br>{{ s.en }}</div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('submit') }}" novalidate id="apply-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="card">
+      {% for s in steps %}
+      <div class="step" data-step="{{ s.n }}">
+        <h3>{{ s.title }}</h3>
+
+        {% if s.n == 1 %}
+          {% for f in s.fields %}{{ render_field(f) }}{% endfor %}
+          <label class="consent">
+            <input type="checkbox" name="consent" value="yes" id="consent" required{% if saved.get('mobile') %} checked{% endif %}>
+            <span>
+              मैं सहमत हूँ कि ESAF Small Finance Bank के CSP एजेंट बनने की प्रक्रिया के लिए मेरी जानकारी और दस्तावेज़ लिए
+              और सुरक्षित रखे जाएँ, और इस बारे में मुझसे फ़ोन/WhatsApp पर संपर्क किया जाए।<br>
+              I agree that my details and documents are collected and stored securely to process my application to
+              become an ESAF CSP agent, and that I may be contacted by phone/WhatsApp about it.
+              <span class="hint">({{ notice_version }})</span>
+            </span>
+          </label>
+
+        {% elif s.n == 2 %}
+          <p class="hint" style="margin-top:-6px;">हर फोटो चुनते ही अपलोड हो जाएगी / Each photo uploads as soon as you pick it</p>
+          {% for key, hi, en in doc_fields %}
+          <div class="field">
+            <label>{{ hi }} / {{ en }}</label>
+            <input type="file" data-doc="{{ key }}" accept="image/*">
+            <div class="doc-status{% if key in uploaded %} ok{% endif %}" id="st-{{ key }}">
+              {% if key in uploaded %}✓ अपलोड हो गया / Uploaded{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          <input type="hidden" name="shop_lat" id="shop_lat" value="{{ saved.get('shop_lat', '') }}">
+          <input type="hidden" name="shop_lng" id="shop_lng" value="{{ saved.get('shop_lng', '') }}">
+
+        {% elif s.n == total_steps %}
+          <p style="font-size:14px; color:var(--muted);">
+            सबमिट करने से पहले सुनिश्चित करें कि सभी दस्तावेज़ साफ़ दिख रहे हैं। आप "पीछे" जाकर कुछ भी बदल सकते हैं।<br><br>
+            Make sure all documents are clearly visible. You can go back and change anything before submitting.
+          </p>
+
+        {% else %}
+          {% for f in s.fields %}{{ render_field(f) }}{% endfor %}
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="btn-row">
+        <button type="button" id="back-btn" class="btn-secondary">पीछे / Back</button>
+        <button type="button" id="next-btn" class="btn-primary">अगला / Next</button>
+        <button type="submit" id="submit-btn" class="btn-primary">जमा करें / Submit</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="footer-note">
+    ESAF Small Finance Bank Ltd. — RBI विनियमित / RBI regulated<br>
+    <a href="{{ url_for('start_over') }}">नया फॉर्म शुरू करें / Start a new form</a>
+  </div>
+</div>
+
+<script type="application/json" id="apply-config">{{ {
+  "total": total_steps, "docKeys": doc_keys, "uploaded": uploaded, "start": start_step, "csrf": csrf,
+  "saveUrl": url_for('save_step'), "uploadUrl": url_for('upload_doc')
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='apply.js') }}"></script>
+</body>
+</html>
