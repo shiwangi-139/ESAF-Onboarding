@@ -34,6 +34,12 @@ def init_app(app):
     app.jinja_env.globals.update(csrf_token=csrf_token, role_label=lambda r: ROLE_LABELS.get(r, r))
 
 
+def dev_login_allowed():
+    """Dev sign-in: only in development, only from this machine, and never through a proxy such as nginx."""
+    forwarded = request.headers.get("X-Forwarded-For") or request.headers.get("X-Real-IP")
+    return config.DEV_LOGIN_ENABLED and request.remote_addr in ("127.0.0.1", "::1") and not forwarded
+
+
 def _hash(token):
     return hashlib.sha256(token.encode()).digest()
 
@@ -138,7 +144,7 @@ def _deny(email, reason):
     activity.alert(f"⚠️ Sign-in refused for an uninvited/blocked account ({reason}).")
     return render_template("login.html", error="This account doesn't have access. Ask your admin to invite you.",
                            google_enabled=bool(config.GOOGLE_CLIENT_ID),
-                           dev_login=config.DEV_LOGIN_ENABLED and request.remote_addr in ("127.0.0.1", "::1"),
+                           dev_login=dev_login_allowed(),
                            next=request.args.get("next", "")), 403
 
 
@@ -150,7 +156,7 @@ def _safe_next():
 @bp.route("/login")
 def login():
     return render_template("login.html", google_enabled=bool(config.GOOGLE_CLIENT_ID),
-                           dev_login=config.DEV_LOGIN_ENABLED and request.remote_addr in ("127.0.0.1", "::1"),
+                           dev_login=dev_login_allowed(),
                            next=request.args.get("next", ""))
 
 
@@ -193,7 +199,7 @@ def google_callback():
 @bp.route("/dev-login", methods=["POST"])
 def dev_login():
     """Local testing only: APP_ENV=development, DEV_LOGIN=1, and the request must come from this machine."""
-    if not config.DEV_LOGIN_ENABLED or request.remote_addr not in ("127.0.0.1", "::1"):
+    if not dev_login_allowed():
         abort(404)
     user = _find_invited_user(request.form.get("email", ""))
     if not user:
