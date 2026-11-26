@@ -136,7 +136,10 @@ def _deny(email, reason):
         if org:
             activity.audit(cur, org["id"], "login_denied", "email", email, {"reason": reason})
     activity.alert(f"⚠️ Sign-in refused for an uninvited/blocked account ({reason}).")
-    return render_template("login.html", error="This Google account doesn't have access. Ask your admin to invite you."), 403
+    return render_template("login.html", error="This account doesn't have access. Ask your admin to invite you.",
+                           google_enabled=bool(config.GOOGLE_CLIENT_ID),
+                           dev_login=config.DEV_LOGIN_ENABLED and request.remote_addr in ("127.0.0.1", "::1"),
+                           next=request.args.get("next", "")), 403
 
 
 def _safe_next():
