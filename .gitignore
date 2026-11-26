@@ -6,3 +6,4 @@ data/
 backups/
 client_secret*.json
 token.json
+samples/

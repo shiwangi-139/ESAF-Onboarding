@@ -1,0 +1,188 @@
+# Aadhaar card knowledge base
+# ---------------------------------------------------------------------------
+# Tells the extraction agent WHAT is printed on an Aadhaar card, WHERE, and HOW to
+# recognise and check each value. OCR (RapidOCR / Tesseract) reads every text line with
+# its position; this file decides which line is which field.
+#
+# Positions are fractions of the card (0.0 = left/top edge, 1.0 = right/bottom edge),
+# measured with the card upright and landscape. The extractor first turns the photo
+# upright (tries 0/90/180/270 degrees), finds the card edges, then applies these zones.
+# Zones are hints, not hard limits: labels and patterns win when they disagree.
+#
+# Reference templates (dummy data only, safe to commit): kb/templates/
+# Real card photos for testing go in samples/ (git-ignored, never committed).
+
+document: aadhaar
+version: 1
+
+privacy:
+  # The full 12-digit number is never stored. Only the last 4 digits are kept,
+  # and the first 8 digits are blacked out on every saved image.
+  aadhaar_number: last4_only
+  mask_in_images: first_8_digits
+  # The old (pre-2019) back-side QR holds the full number as plain XML, so it is
+  # blacked out too. The newer Secure QR holds only the last 4 digits, so it can stay.
+  mask_qr_if: legacy_xml_qr
+
+layouts:
+  # ------------------------------------------------------------------------
+  # PVC card / cut-out e-Aadhaar, landscape. Card aspect ~1.44 to 1.59.
+  # ------------------------------------------------------------------------
+  pvc_card:
+    aspect_ratio: [1.40, 1.65]
+
+    back:
+      template: kb/templates/aadhaar_back_template.pdf
+      identify_by:            # any 2 of these => this is the back side
+        - "Unique Identification Authority of India"
+        - "भारतीय विशिष्ट पहचान प्राधिकरण"
+        - "Address"
+        - "पता"
+        - "help@uidai.gov.in"
+        - "www.uidai.gov.in"
+        - "1947"
+
+      fields:
+        address_hi:
+          label: ["पता", "पता:"]
+          zone: {x: [0.04, 0.60], y: [0.25, 0.47]}
+          lines: 1-5                       # value continues on the next lines
+          ends_with: pincode
+          script: devanagari
+
+        address_en:
+          label: ["Address", "Address:"]
+          zone: {x: [0.04, 0.60], y: [0.55, 0.78]}
+          lines: 1-5
+          ends_with: pincode
+          script: latin
+          # Usually begins "S/O", "D/O", "W/O" or "C/O" followed by the relative's name
+          relation_prefix: '^(S/O|D/O|W/O|C/O)[:\s]+(?P<relative_name>[^,]+),'
+
+        pincode:
+          pattern: '\b[1-9]\d{5}\b'
+          within: address_en               # the 6 digits at the end of the address
+          also_in: address_hi
+
+        state:
+          within: address_en
+          from_list: indian_states         # the word before the pincode, matched to a state name
+
+        aadhaar_number:
+          zone: {x: [0.25, 0.75], y: [0.78, 0.91]}
+          pattern: '\b[2-9]\d{3}\s?\d{4}\s?\d{4}\b'   # never starts with 0 or 1
+          check: verhoeff
+          keep: last4
+          mask: first_8_digits
+
+        vid:                                # 16-digit Virtual ID, printed on some cards
+          label: ["VID", "VID :"]
+          pattern: '\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\b'
+          keep: none                        # not needed for onboarding; masked if present
+          mask: all
+
+        print_date:
+          label: ["Print Date"]
+          zone: {x: [0.00, 0.06], y: [0.30, 0.70]}
+          rotated: 90                       # printed sideways along the left edge
+          pattern: '\d{2}/\d{2}/\d{4}'
+          keep: false
+
+      not_fields:                           # always on the card; ignore
+        - "1947"
+        - "help@uidai.gov.in"
+        - "www.uidai.gov.in"
+
+      regions:
+        header:   {x: [0.07, 0.87], y: [0.01, 0.15]}
+        qr_code:  {x: [0.61, 0.93], y: [0.24, 0.73]}
+        footer:   {x: [0.00, 1.00], y: [0.91, 1.00]}
+
+    front:
+      template: null                        # TODO: add kb/templates/aadhaar_front_template.pdf
+      approximate: true                     # zones below follow the standard UIDAI layout
+      identify_by:
+        - "Government of India"
+        - "भारत सरकार"
+        - "DOB"
+        - "जन्म तिथि"
+        - "Male"
+        - "Female"
+        - "पुरुष"
+        - "महिला"
+        - "मेरा आधार, मेरी पहचान"
+
+      fields:
+        name_hi:
+          zone: {x: [0.30, 0.95], y: [0.25, 0.40]}
+          position: first_devanagari_line_below_header
+          script: devanagari
+
+        name_en:
+          zone: {x: [0.30, 0.95], y: [0.30, 0.48]}
+          position: line_after name_hi
+          script: latin
+          pattern: "^[A-Za-z][A-Za-z .']{1,60}$"
+
+        dob:
+          label: ["DOB", "Date of Birth", "जन्म तिथि", "जन्म तिथि/DOB", "Year of Birth", "जन्म वर्ष"]
+          zone: {x: [0.30, 0.95], y: [0.40, 0.60]}
+          pattern: '\d{2}/\d{2}/\d{4}|\b(19|20)\d{2}\b'
+          check: valid_date_and_age_18_plus
+
+        gender:
+          zone: {x: [0.30, 0.95], y: [0.50, 0.70]}
+          values:
+            male:        ["MALE", "Male", "पुरुष"]
+            female:      ["FEMALE", "Female", "महिला"]
+            transgender: ["TRANSGENDER", "Transgender", "ट्रांसजेंडर"]
+
+        aadhaar_number:
+          zone: {x: [0.25, 0.75], y: [0.75, 0.92]}
+          pattern: '\b[2-9]\d{3}\s?\d{4}\s?\d{4}\b'
+          check: verhoeff
+          keep: last4
+          mask: first_8_digits
+
+        issue_date:
+          label: ["Issue Date", "आधार जारी करने की तिथि"]
+          rotated: 90
+          pattern: '\d{2}/\d{2}/\d{4}'
+          keep: false
+
+      regions:
+        photo:  {x: [0.04, 0.30], y: [0.22, 0.80]}
+        header: {x: [0.00, 1.00], y: [0.00, 0.20]}
+
+  # ------------------------------------------------------------------------
+  # Full-page e-Aadhaar letter (A4, portrait): both sides printed at the bottom,
+  # with an address block at the top. TODO: add a template when available.
+  # ------------------------------------------------------------------------
+  eaadhaar_letter:
+    aspect_ratio: [0.68, 0.74]
+    template: null
+    note: "Detect by 'Enrolment No' at the top; crop the two card halves at the bottom and reuse pvc_card rules."
+
+cross_checks:
+  # Values compared with what the lead typed in the form
+  - field: name_en
+    compare_with: full_name
+    match: fuzzy_90
+  - field: dob
+    compare_with: dob
+    match: exact
+  - field: pincode
+    compare_with: pincode
+    match: exact
+  - field: aadhaar_number.last4
+    compare_with: aadhaar_last4
+    match: exact
+  - field: aadhaar_number.last4
+    compare_with: secure_qr.last4        # front OCR and back QR must agree
+    match: exact
+  - field: gender
+    compare_with: gender
+    match: exact
+  - field: state
+    compare_with: state
+    match: exact
