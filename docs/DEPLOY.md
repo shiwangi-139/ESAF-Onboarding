@@ -21,7 +21,7 @@ Internet ──443──▶ nginx (TLS, rate limits, security headers)
 
 | What | Where | How it's protected |
 |---|---|---|
-| Code | `/srv/csp-onboarding/app` (from the company git repo) | owned by root, read-only to the app |
+| Code | `/srv/csp-onboarding/app` (from the private GitHub repo) | owned by root, read-only to the app |
 | Python environment | `/srv/csp-onboarding/venv` | |
 | Settings and secrets | `/srv/csp-onboarding/app/.env` | `chmod 600`, owner `csp`. Never in git. |
 | Lead records, answers, timeline, audit log | PostgreSQL database `csp_onboarding`, schema `app` | Names, mobiles, emails and all form answers are **encrypted by the app** before they reach the database (AES-256-GCM, a separate key per lead). Row-level security limits each RM to their own leads. |
@@ -119,7 +119,72 @@ The admin then invites RMs from **Team** in the dashboard.
 ### Start it
 
 ```bash
-sudo cp deploy/csp-onboarding.service /etc/systemd/system/ 
+sudo cp deploy/csp-onboarding.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now csp-onboarding
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/csp-onboarding    # edit the domain first
+sudo ln -s /etc/nginx/sites-available/csp-onboarding /etc/nginx/sites-enabled/
+sudo certbot --nginx -d csp.yourcompany.in
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Open `https://csp.yourcompany.in/dashboard` and sign in with Google. The form link is `https://csp.yourcompany.in/apply`.
+
+### Backups
+
+```bash
+sudo sh -c 'head -c 48 /dev/urandom | base64 > /etc/csp-backup.pass && chmod 600 /etc/csp-backup.pass'
+sudo cp deploy/backup.sh /usr/local/bin/csp-backup && sudo chmod 700 /usr/local/bin/csp-backup
+echo "30 2 * * * root /usr/local/bin/csp-backup" | sudo tee /etc/cron.d/csp-backup
+```
+
+**Test a restore once a month.** Store the backup passphrase and `MASTER_KEY_V1` safely, separately from each other.
+
+### Housekeeping (cron)
+
+```bash
+# Delete anonymous form sessions (no mobile entered) older than 30 days
+0 3 * * * csp cd /srv/csp-onboarding/app && /srv/csp-onboarding/venv/bin/python manage.py purge-stale --days 30
+# Check the audit log hasn't been tampered with
+0 4 * * 1 csp cd /srv/csp-onboarding/app && /srv/csp-onboarding/venv/bin/python manage.py verify-audit
+```
+
+---
+
+## 4. Updating to a new version
+
+```bash
+cd /srv/csp-onboarding/app && sudo git pull
+sudo /srv/csp-onboarding/venv/bin/pip install -r requirements.txt
+sudo -u csp /srv/csp-onboarding/venv/bin/python manage.py migrate
+sudo systemctl restart csp-onboarding
+```
+
+## 5. Erasure request (DPDP)
+
+```bash
+sudo -u csp /srv/csp-onboarding/venv/bin/python manage.py erase-lead <lead-id>
+```
+
+This destroys the lead's encryption keys, so their data can never be read again, deletes their files, and records the erasure in the audit log.
+
+---
+
+## 6. Running it on a laptop for testing
+
+```bash
+cd csp-onboarding-agent
+venv/bin/pip install -r requirements.txt
+venv/bin/python manage.py genkeys          # paste into .env, plus the lines below
+#   APP_ENV=development
+#   DEV_LOGIN=1
+#   DATABASE_URL=postgresql://esaf_app:<password>@localhost:5432/esaf_onboarding
+venv/bin/python manage.py migrate
+venv/bin/python manage.py init --org-name "Eko" --org-slug eko --admin-email you@example.com --admin-name "You"
+venv/bin/python webform/app.py
+```
+
+Open http://localhost:5000/dashboard, sign in with **Dev sign-in** using the admin email, and share the form link shown on the dashboard.
+
 ---
 
 ## 7. Not included yet (each needs an outside account)
