@@ -124,7 +124,7 @@ def _find_invited_user(email):
         cur.execute(
             """SELECT u.*, o.allowed_google_domain FROM users u JOIN organizations o ON o.id = u.org_id
                WHERE u.email = %s AND u.status <> 'disabled' AND o.status = 'active'""",
-            (email.lower(),),
+            ((email or "").strip().lower(),),
         )
         return cur.fetchone()
 

@@ -76,10 +76,10 @@ def init(args):
                 (org["id"], args.program_slug, args.submission_email),
             )
             print(f"created programme {args.program_slug}")
-        cur.execute("SELECT 1 FROM users WHERE email = %s", (args.admin_email.lower(),))
+        cur.execute("SELECT 1 FROM users WHERE email = %s", (args.admin_email.strip().lower(),))
         if not cur.fetchone():
             cur.execute("INSERT INTO users (org_id, email, name, role) VALUES (%s, %s, %s, 'org_admin')",
-                        (org["id"], args.admin_email.lower(), args.admin_name))
+                        (org["id"], args.admin_email.strip().lower(), args.admin_name))
             print(f"invited admin {args.admin_email}")
 
 
@@ -89,7 +89,7 @@ def add_user(args):
         cur.execute("SELECT id FROM organizations ORDER BY created_at LIMIT 1")
         org = cur.fetchone()
         cur.execute("INSERT INTO users (org_id, email, name, role) VALUES (%s, %s, %s, %s)",
-                    (org["id"], args.email.lower(), args.name, args.role))
+                    (org["id"], args.email.strip().lower(), args.name, args.role))
     print(f"invited {args.email} as {args.role}")
 
 
