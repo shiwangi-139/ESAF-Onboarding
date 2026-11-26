@@ -100,7 +100,7 @@ In Google Cloud Console:
 1. Open **APIs & Services → OAuth consent screen** and choose **Internal**, so only your Workspace accounts can sign in.
 2. Open **Credentials → Create credentials → OAuth client ID**:
    - Type: **Web application**
-   - Authorised redirect URI: `https://csp.yourcompany.in/auth/google/callback`
+   - Authorised redirect URI: `https://indev.eko.in/auth/google/callback`
 3. Copy the client ID and secret into `.env`.
 4. In the Workspace admin console, enforce **2-Step Verification** for everyone who uses the dashboard.
 
@@ -110,8 +110,8 @@ In Google Cloud Console:
 cd /srv/csp-onboarding/app
 sudo -u csp /srv/csp-onboarding/venv/bin/python manage.py migrate
 sudo -u csp /srv/csp-onboarding/venv/bin/python manage.py init \
-     --org-name "Your Company" --org-slug yourco --google-domain yourcompany.in \
-     --admin-email you@yourcompany.in --admin-name "Your Name"
+     --org-name "Eko" --org-slug eko --google-domain <company-google-workspace-domain> \
+     --admin-email <your-google-email> --admin-name "Your Name"
 ```
 
 The admin then invites RMs from **Team** in the dashboard.
@@ -123,11 +123,11 @@ sudo cp deploy/csp-onboarding.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now csp-onboarding
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/csp-onboarding    # edit the domain first
 sudo ln -s /etc/nginx/sites-available/csp-onboarding /etc/nginx/sites-enabled/
-sudo certbot --nginx -d csp.yourcompany.in
+sudo certbot --nginx -d indev.eko.in
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Open `https://csp.yourcompany.in/dashboard` and sign in with Google. The form link is `https://csp.yourcompany.in/apply`.
+Open `https://indev.eko.in/dashboard` and sign in with Google. The form link is `https://indev.eko.in/apply`.
 
 ### Backups
 
