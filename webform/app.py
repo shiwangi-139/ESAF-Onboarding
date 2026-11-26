@@ -7,6 +7,7 @@ session's data key, so RMs can track who opened the form, how far they got and w
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 import uuid
@@ -398,4 +399,4 @@ def too_large(_):
 
 if __name__ == "__main__":
     # Local development only. On the server the app runs under gunicorn (see deploy/).
-    app.run(host="0.0.0.0" if config.IS_DEV else "127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0" if config.IS_DEV else "127.0.0.1", port=int(os.environ.get("PORT", "5000")), debug=False)
